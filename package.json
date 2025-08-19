@@ -22,13 +22,16 @@
     "moleculer-repl": "^0.7.3"
   },
   "dependencies": {
-    "moleculer-web": "^0.10.4",
+    "dotenv": "^16.4.5",
+    "moleculer": "^0.14.26",
     "moleculer-db": "^0.8.20",
     "moleculer-db-adapter-mongo": "^0.4.15",
-    "moleculer": "^0.14.26"
+    "moleculer-web": "^0.10.4",
+    "mongodb": "^6.18.0",
+    "mongoose": "^8.17.2"
   },
   "engines": {
-    "node": ">= 16.x.x"
+    "node": ">= 18.x.x"
   },
   "jest": {
     "coverageDirectory": "../coverage",
