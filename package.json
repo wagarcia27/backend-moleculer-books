@@ -4,7 +4,7 @@
   "description": "My Moleculer-based microservices project",
   "scripts": {
     "dev": "moleculer-runner --repl --hot services/**/*.service.js",
-    "start": "moleculer-runner",
+    "start": "node node_modules/moleculer/bin/moleculer-runner.js \"Backend/**/services/**/*.service.js\" \"services/**/*.service.js\"",
     "cli": "moleculer connect ",
     "ci": "jest --watch",
     "test": "jest --coverage",
