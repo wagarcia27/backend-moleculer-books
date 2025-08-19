@@ -148,7 +148,8 @@ module.exports = {
 				url.startsWith("/api/books/front-cover") ||
 				url.startsWith("/api/books/library/front-cover") ||
 				url.startsWith("/api/docs") ||
-				url.startsWith("/api/auth/register")
+				url.startsWith("/api/auth/register") ||
+				url.startsWith("/api/greeter/hello")
 			) {
 				return null;
 			}
