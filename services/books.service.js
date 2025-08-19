@@ -15,6 +15,7 @@ module.exports = {
 	settings: {
 		fields: [
 			"_id",
+			"username",
 			"title",
 			"author",
 			"publishYear",
@@ -77,7 +78,10 @@ module.exports = {
 				const workKeys = results.filter(r => !!r.workKey).map(r => r.workKey);
 				let saved = [];
 				if (workKeys.length > 0) {
-					saved = await this.adapter.find({ query: { openLibraryWorkKey: { $in: workKeys } } });
+					const username = ctx.meta.user && ctx.meta.user.username;
+					const query = { openLibraryWorkKey: { $in: workKeys } };
+					if (username) query.username = username;
+					saved = await this.adapter.find({ query });
 				}
 
 				const savedByKey = new Map(saved.map(b => [b.openLibraryWorkKey, b]));
@@ -131,6 +135,9 @@ module.exports = {
 			/** @param {Context} ctx */
 			async handler(ctx) {
 				const payload = { ...ctx.params };
+				const username = ctx.meta.user && ctx.meta.user.username;
+				if (!username) throw new Error("Usuario no autenticado");
+				payload.username = username;
 				if (!payload.coverImageBase64 && payload.coverId) {
 					const imgUrl = `https://covers.openlibrary.org/b/id/${payload.coverId}-L.jpg`;
 					try {
@@ -168,6 +175,11 @@ module.exports = {
 			async handler(ctx) {
 				let doc = await this.adapter.findById(ctx.params.id);
 				if (!doc) throw new Error("Libro no encontrado");
+				// Restringir acceso a dueño
+				const username = ctx.meta.user && ctx.meta.user.username;
+				if (username && doc.username && doc.username !== username) {
+					throw new Error("Libro no encontrado");
+				}
 				// Enriquecer publishYear en caso de faltar
 				doc = await this.ensurePublishYear(doc);
 				const json = await this.transformDocuments(ctx, ctx.params, doc);
@@ -197,6 +209,12 @@ module.exports = {
 				const update = { ...ctx.params };
 				delete update.id;
 				update.updatedAt = new Date();
+				// Asegurar ownership
+				const username = ctx.meta.user && ctx.meta.user.username;
+				const current = await this.adapter.findById(ctx.params.id);
+				if (!current || (username && current.username && current.username !== username)) {
+					throw new Error("Libro no encontrado");
+				}
 				const doc = await this.adapter.updateById(ctx.params.id, { $set: update });
 				const json = await this.transformDocuments(ctx, ctx.params, doc);
 				await this.entityChanged("updated", json, ctx);
@@ -211,6 +229,11 @@ module.exports = {
 			rest: "DELETE /my-library/:id",
 			params: { id: "string" },
 			async handler(ctx) {
+				const username = ctx.meta.user && ctx.meta.user.username;
+				const current = await this.adapter.findById(ctx.params.id);
+				if (!current || (username && current.username && current.username !== username)) {
+					throw new Error("Libro no encontrado");
+				}
 				await this.adapter.removeById(ctx.params.id);
 				return { ok: true };
 			}
@@ -230,6 +253,10 @@ module.exports = {
 			},
 			async handler(ctx) {
 				const query = {};
+				// Scope por usuario
+				const username = ctx.meta.user && ctx.meta.user.username;
+				if (username) query.username = username;
+
 				if (ctx.params.q) {
 					const regex = new RegExp(ctx.params.q, "i");
 					query.$or = [ { title: regex }, { author: regex } ];

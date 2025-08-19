@@ -143,8 +143,13 @@ module.exports = {
 		 */
 		async authenticate(ctx, route, req) {
 			const url = req.originalUrl || req.url || "";
-			// Rutas públicas (solo lectura)
-			if (url.startsWith("/api/books/front-cover") || url.startsWith("/api/books/library/front-cover") || url.startsWith("/api/docs")) {
+			// Rutas públicas (solo lectura o registro de usuario)
+			if (
+				url.startsWith("/api/books/front-cover") ||
+				url.startsWith("/api/books/library/front-cover") ||
+				url.startsWith("/api/docs") ||
+				url.startsWith("/api/auth/register")
+			) {
 				return null;
 			}
 			const header = req.headers["authorization"] || "";
@@ -157,11 +162,14 @@ module.exports = {
 			if (idx === -1) throw new ApiGateway.Errors.UnAuthorizedError(ApiGateway.Errors.ERR_INVALID_TOKEN);
 			const username = userpass.slice(0, idx);
 			const password = userpass.slice(idx + 1);
-			const expectedUser = process.env.BASIC_USER || "admin";
-			const expectedPass = process.env.BASIC_PASS || "admin";
-			if (username === expectedUser && password === expectedPass) {
-				return { username };
-			}
+
+			// 1) Intentar validar contra DB
+			try {
+				const ok = await ctx.broker.call("users.validateBasic", { username, password });
+				if (ok) return { username };
+			} catch (_) {}
+
+			// Si no valida contra DB, no permitir acceso
 			throw new ApiGateway.Errors.UnAuthorizedError(ApiGateway.Errors.ERR_INVALID_TOKEN);
 		},
 

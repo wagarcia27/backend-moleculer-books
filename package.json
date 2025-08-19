@@ -28,7 +28,8 @@
     "moleculer-db-adapter-mongo": "^0.4.15",
     "moleculer-web": "^0.10.4",
     "mongodb": "^6.18.0",
-    "mongoose": "^8.17.2"
+    "mongoose": "^8.17.2",
+    "bcryptjs": "^2.4.3"
   },
   "engines": {
     "node": ">= 18.x.x"
