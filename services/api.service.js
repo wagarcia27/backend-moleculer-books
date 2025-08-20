@@ -60,7 +60,8 @@ module.exports = {
 				autoAliases: true,
 
 				aliases: {
-
+					// Alias explícito para mantener /api/auth/register
+					"POST /auth/register": "users.register"
 				},
 
 				/**
