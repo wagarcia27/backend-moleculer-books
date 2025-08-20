@@ -142,11 +142,12 @@ module.exports = {
 				 * @param {IncomingRequest} req
 				 * @param {ServerResponse} res
 				 * @param {Object} data
-				 *
+				 */
 				onBeforeCall(ctx, route, req, res) {
-					// Set request headers to context meta
+					// Guardar inicio para medir duración
+					req.$startTime = Date.now();
 					ctx.meta.userAgent = req.headers["user-agent"];
-				}, */
+				},
 
 				/**
 				 * After call hook. You can modify the data.
@@ -155,10 +156,24 @@ module.exports = {
 				 * @param {IncomingRequest} req
 				 * @param {ServerResponse} res
 				 * @param {Object} data
+ 				 */
 				onAfterCall(ctx, route, req, res, data) {
-					// Async function which return with Promise
-					return doSomething(ctx, res, data);
-				}, */
+					const elapsed = Date.now() - (req.$startTime || Date.now());
+					const url = req.originalUrl || req.url || "";
+					const user = (ctx.meta && ctx.meta.user && ctx.meta.user.username) || "-";
+					const status = res && res.statusCode ? res.statusCode : 200;
+					this.logger.info(`${req.method} ${url} ${status} ${elapsed}ms user=${user}`);
+					return data;
+				},
+
+				// Hook de error para loguear fallos de endpoints
+				onError(req, res, err) {
+					const elapsed = Date.now() - (req.$startTime || Date.now());
+					const url = req.originalUrl || req.url || "";
+					const status = res && res.statusCode ? res.statusCode : (err && err.code) || 500;
+					this.logger.warn(`${req.method} ${url} ${status} ${elapsed}ms error=${err && err.name}:${err && err.message}`);
+					return this.sendError(req, res, err);
+				},
 
 				// Calling options. More info: https://moleculer.services/docs/0.14/moleculer-web.html#Calling-options
 				callOptions: {},
