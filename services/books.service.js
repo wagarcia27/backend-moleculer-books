@@ -65,11 +65,28 @@ module.exports = {
 
 		/**
 		 * GET /api/books/home
-		 * Devuelve los 10 resultados de la última búsqueda del usuario autenticado.
+		 * Devuelve los últimos 5 seleccionados por el usuario (recientes). Si no tiene,
+		 * cae en la última búsqueda del usuario (máx 10 resultados)
 		 */
 		home: {
 			rest: "GET /home",
 			async handler(ctx) {
+				// 1) Si hay recientes del usuario, usarlos
+				try {
+					const recent = await ctx.call("recents.list");
+					if (Array.isArray(recent) && recent.length > 0) {
+						return recent.map(r => ({
+							id: r.openLibraryWorkKey,
+							title: r.title,
+							author: r.author,
+							publishYear: r.publishYear ?? null,
+							coverUrl: r.coverImageBase64 ? `/api/books/front-cover/${r.id}` : (r.coverId ? `https://covers.openlibrary.org/b/id/${r.coverId}-M.jpg` : null),
+							saved: true,
+							savedId: r.id
+						}));
+					}
+				} catch (_) {}
+				// 2) Fallback a última búsqueda
 				let term = null;
 				try {
 					const list = await ctx.call("searches.last");

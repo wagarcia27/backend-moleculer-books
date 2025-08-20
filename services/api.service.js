@@ -60,6 +60,8 @@ module.exports = {
 				autoAliases: true,
 
 				aliases: {
+					// Registrar selección de un libro como "reciente" del usuario.
+					"POST /books/recent": "recents.add",
 					// Alias explícito para mantener /api/auth/register
 					"POST /auth/register": "users.register",
 					// Endpoint de login para clientes que esperan una ruta específica.
@@ -168,11 +170,23 @@ module.exports = {
 
 				// Hook de error para loguear fallos de endpoints
 				onError(req, res, err) {
-					const elapsed = Date.now() - (req.$startTime || Date.now());
-					const url = req.originalUrl || req.url || "";
-					const status = res && res.statusCode ? res.statusCode : (err && err.code) || 500;
-					this.logger.warn(`${req.method} ${url} ${status} ${elapsed}ms error=${err && err.name}:${err && err.message}`);
-					return this.sendError(req, res, err);
+					// Importante: NO llamar a this.sendError aquí para evitar recursión.
+					try {
+						const elapsed = Date.now() - (req.$startTime || Date.now());
+						const url = req.originalUrl || req.url || "";
+						const status = (err && (err.code || err.status)) || (res && res.statusCode) || 500;
+						this.logger.warn(`${req.method} ${url} ${status} ${elapsed}ms error=${err && err.name}:${err && err.message}`);
+						res.statusCode = status;
+						res.setHeader("Content-Type", "application/json");
+						const body = { code: status, name: (err && err.name) || "Error", message: (err && err.message) || "Error" };
+						return res.end(JSON.stringify(body));
+					} catch (_) {
+						try {
+							res.statusCode = 500;
+							res.setHeader("Content-Type", "application/json");
+							return res.end(JSON.stringify({ code: 500, name: "Error", message: "INTERNAL_ERROR" }));
+						} catch { /* ignore */ }
+					}
 				},
 
 				// Calling options. More info: https://moleculer.services/docs/0.14/moleculer-web.html#Calling-options
