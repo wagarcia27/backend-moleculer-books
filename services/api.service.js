@@ -98,6 +98,40 @@ module.exports = {
 							res.setHeader("Content-Type", "application/json");
 							return res.end(JSON.stringify({ error: "INTERNAL_ERROR" }));
 						}
+					},
+					// Whoami: valida header Basic y devuelve el usuario
+					"GET /auth/whoami": async (req, res) => {
+						try {
+							const header = req.headers["authorization"] || "";
+							if (!header.startsWith("Basic ")) {
+								res.statusCode = 401;
+								res.setHeader("Content-Type", "application/json");
+								return res.end(JSON.stringify({ error: "NO_TOKEN" }));
+							}
+							const token = header.substring(6);
+							const userpass = Buffer.from(token, "base64").toString();
+							const idx = userpass.indexOf(":");
+							if (idx === -1) {
+								res.statusCode = 400;
+								res.setHeader("Content-Type", "application/json");
+								return res.end(JSON.stringify({ error: "INVALID_FORMAT" }));
+							}
+							const username = userpass.slice(0, idx);
+							const password = userpass.slice(idx + 1);
+							const ok = await req.$service.broker.call("users.validateBasic", { username, password });
+							if (!ok) {
+								res.statusCode = 401;
+								res.setHeader("Content-Type", "application/json");
+								return res.end(JSON.stringify({ error: "INVALID_CREDENTIALS" }));
+							}
+							res.statusCode = 200;
+							res.setHeader("Content-Type", "application/json");
+							return res.end(JSON.stringify({ ok: true, username }));
+						} catch (err) {
+							res.statusCode = 500;
+							res.setHeader("Content-Type", "application/json");
+							return res.end(JSON.stringify({ error: "INTERNAL_ERROR" }));
+						}
 					}
 				},
 
@@ -188,6 +222,7 @@ module.exports = {
 				url.startsWith("/api/docs") ||
 				url.startsWith("/api/auth/login") ||
 				url.startsWith("/api/auth/register") ||
+				url.startsWith("/api/auth/whoami") ||
 				url.startsWith("/api/greeter/hello")
 			) {
 				return null;
