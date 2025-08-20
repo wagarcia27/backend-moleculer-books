@@ -11,6 +11,8 @@ pids
 *.seed
 *.pid.lock
 
+data/*.db
+
 # Coverage
 lib-cov
 coverage

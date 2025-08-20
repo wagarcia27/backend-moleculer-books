@@ -23,7 +23,10 @@ module.exports = {
 			async handler(ctx) {
 				const { username, password } = ctx.params;
 				const exists = await this.adapter.findOne({ username });
-				if (exists) return { ok: false, message: "Usuario ya existe" };
+				if (exists) {
+					ctx.meta.$statusCode = 409;
+					return { error: "USERNAME_TAKEN", message: "Nombre de usuario no disponible" };
+				}
 				const hash = await bcrypt.hash(password, 10);
 				const doc = await this.adapter.insert({ username, passwordHash: hash, createdAt: new Date() });
 				return { ok: true, userId: String(doc._id) };
@@ -42,5 +45,6 @@ module.exports = {
 		}
 	}
 };
+
 
 
