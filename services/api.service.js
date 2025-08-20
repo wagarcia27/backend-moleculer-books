@@ -41,7 +41,7 @@ module.exports = {
 					origin: ["*"],
 					methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
 					allowedHeaders: ["Content-Type", "Authorization"],
-					exposedHeaders: [],
+					exposedHeaders: ["Authorization"],
 					credentials: true,
 					maxAge: 3600
 				},
@@ -61,7 +61,44 @@ module.exports = {
 
 				aliases: {
 					// Alias explícito para mantener /api/auth/register
-					"POST /auth/register": "users.register"
+					"POST /auth/register": "users.register",
+					// Endpoint de login para clientes que esperan una ruta específica.
+					// Valida credenciales Basic contra DB y devuelve 200 si son correctas.
+					"GET /auth/login": async (req, res) => {
+						try {
+							const header = req.headers["authorization"] || "";
+							if (!header.startsWith("Basic ")) {
+								res.statusCode = 401;
+								res.setHeader("Content-Type", "application/json");
+								return res.end(JSON.stringify({ error: "NO_TOKEN" }));
+							}
+							const token = header.substring(6);
+							const userpass = Buffer.from(token, "base64").toString();
+							const idx = userpass.indexOf(":");
+							if (idx === -1) {
+								res.statusCode = 400;
+								res.setHeader("Content-Type", "application/json");
+								return res.end(JSON.stringify({ error: "INVALID_FORMAT" }));
+							}
+							const username = userpass.slice(0, idx);
+							const password = userpass.slice(idx + 1);
+							const ok = await req.$service.broker.call("users.validateBasic", { username, password });
+							if (!ok) {
+								res.statusCode = 401;
+								res.setHeader("Content-Type", "application/json");
+								return res.end(JSON.stringify({ error: "INVALID_CREDENTIALS" }));
+							}
+							// Echo del header Authorization para que el front pueda almacenarlo si lo necesita
+							res.statusCode = 200;
+							res.setHeader("Authorization", header);
+							res.setHeader("Content-Type", "application/json");
+							return res.end(JSON.stringify({ ok: true, username, token: header }));
+						} catch (err) {
+							res.statusCode = 500;
+							res.setHeader("Content-Type", "application/json");
+							return res.end(JSON.stringify({ error: "INTERNAL_ERROR" }));
+						}
+					}
 				},
 
 				/**
@@ -149,6 +186,7 @@ module.exports = {
 				url.startsWith("/api/books/front-cover") ||
 				url.startsWith("/api/books/library/front-cover") ||
 				url.startsWith("/api/docs") ||
+				url.startsWith("/api/auth/login") ||
 				url.startsWith("/api/auth/register") ||
 				url.startsWith("/api/greeter/hello")
 			) {
