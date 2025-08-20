@@ -146,8 +146,8 @@ module.exports = {
 				 * @param {Object} data
 				 */
 				onBeforeCall(ctx, route, req, res) {
-					// Guardar inicio para medir duración
-					req.$startTime = Date.now();
+					// Guardar inicio en milisegundos (evita colisión con $startTime de moleculer-web)
+					req.$startTimeMs = Date.now();
 					ctx.meta.userAgent = req.headers["user-agent"];
 				},
 
@@ -160,7 +160,7 @@ module.exports = {
 				 * @param {Object} data
  				 */
 				onAfterCall(ctx, route, req, res, data) {
-					const elapsed = Date.now() - (req.$startTime || Date.now());
+					const elapsed = Date.now() - (req.$startTimeMs || Date.now());
 					const url = req.originalUrl || req.url || "";
 					const user = (ctx.meta && ctx.meta.user && ctx.meta.user.username) || "-";
 					const status = res && res.statusCode ? res.statusCode : 200;
@@ -172,7 +172,7 @@ module.exports = {
 				onError(req, res, err) {
 					// Importante: NO llamar a this.sendError aquí para evitar recursión.
 					try {
-						const elapsed = Date.now() - (req.$startTime || Date.now());
+						const elapsed = Date.now() - (req.$startTimeMs || Date.now());
 						const url = req.originalUrl || req.url || "";
 						const status = (err && (err.code || err.status)) || (res && res.statusCode) || 500;
 						this.logger.warn(`${req.method} ${url} ${status} ${elapsed}ms error=${err && err.name}:${err && err.message}`);
