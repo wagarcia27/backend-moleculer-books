@@ -57,48 +57,26 @@ module.exports = {
 			/** @param {Context} ctx */
 			async handler(ctx) {
 				const query = ctx.params.q;
-				// Guarda la búsqueda
+				// Guarda la búsqueda por usuario
 				try { await ctx.call("searches.add", { term: query }); } catch (err) { this.logger.warn("No se pudo guardar la búsqueda", err.message); }
+				return this.buildSearchResults(ctx, query);
+			}
+		},
 
-				const url = `https://openlibrary.org/search.json?q=${encodeURIComponent(query)}&limit=10`;
-				const res = await fetch(url);
-				if (!res.ok) throw new Error("OpenLibrary no disponible");
-				const data = await res.json();
-
-				const docs = Array.isArray(data.docs) ? data.docs : [];
-				const results = docs.slice(0, 10).map(doc => ({
-					workKey: doc.key,
-					title: doc.title,
-					author: Array.isArray(doc.author_name) && doc.author_name.length > 0 ? doc.author_name[0] : undefined,
-					publishYear: doc.first_publish_year,
-					coverId: doc.cover_i
-				}));
-
-				// Marca cuáles están guardados y resuelve portada
-				const workKeys = results.filter(r => !!r.workKey).map(r => r.workKey);
-				let saved = [];
-				if (workKeys.length > 0) {
-					const username = ctx.meta.user && ctx.meta.user.username;
-					const query = { openLibraryWorkKey: { $in: workKeys } };
-					if (username) query.username = username;
-					saved = await this.adapter.find({ query });
-				}
-
-				const savedByKey = new Map(saved.map(b => [b.openLibraryWorkKey, b]));
-
-				return results.map(r => {
-					const savedBook = savedByKey.get(r.workKey);
-					const coverUrl = savedBook && savedBook.coverImageBase64 ? `/api/books/front-cover/${savedBook._id}` : (r.coverId ? `https://covers.openlibrary.org/b/id/${r.coverId}-M.jpg` : null);
-					return {
-						id: r.workKey,
-						title: r.title,
-						author: r.author,
-						publishYear: r.publishYear,
-						coverUrl,
-						saved: !!savedBook,
-						savedId: savedBook ? String(savedBook._id) : null
-					};
-				});
+		/**
+		 * GET /api/books/home
+		 * Devuelve los 10 resultados de la última búsqueda del usuario autenticado.
+		 */
+		home: {
+			rest: "GET /home",
+			async handler(ctx) {
+				let term = null;
+				try {
+					const list = await ctx.call("searches.last");
+					if (Array.isArray(list) && list.length > 0) term = list[0].term;
+				} catch (_) {}
+				if (!term) return [];
+				return this.buildSearchResults(ctx, term);
 			}
 		},
 
@@ -342,6 +320,47 @@ module.exports = {
 	},
 
 	methods: {
+		async buildSearchResults(ctx, term) {
+			const url = `https://openlibrary.org/search.json?q=${encodeURIComponent(term)}&limit=10`;
+			const res = await fetch(url);
+			if (!res.ok) throw new Error("OpenLibrary no disponible");
+			const data = await res.json();
+
+			const docs = Array.isArray(data.docs) ? data.docs : [];
+			const results = docs.slice(0, 10).map(doc => ({
+				workKey: doc.key,
+				title: doc.title,
+				author: Array.isArray(doc.author_name) && doc.author_name.length > 0 ? doc.author_name[0] : undefined,
+				publishYear: doc.first_publish_year,
+				coverId: doc.cover_i
+			}));
+
+			// Marcar guardados según el usuario autenticado
+			const workKeys = results.filter(r => !!r.workKey).map(r => r.workKey);
+			let saved = [];
+			if (workKeys.length > 0) {
+				const username = ctx.meta.user && ctx.meta.user.username;
+				const query = { openLibraryWorkKey: { $in: workKeys } };
+				if (username) query.username = username;
+				saved = await this.adapter.find({ query });
+			}
+
+			const savedByKey = new Map(saved.map(b => [b.openLibraryWorkKey, b]));
+
+			return results.map(r => {
+				const savedBook = savedByKey.get(r.workKey);
+				const coverUrl = savedBook && savedBook.coverImageBase64 ? `/api/books/front-cover/${savedBook._id}` : (r.coverId ? `https://covers.openlibrary.org/b/id/${r.coverId}-M.jpg` : null);
+				return {
+					id: r.workKey,
+					title: r.title,
+					author: r.author,
+					publishYear: r.publishYear,
+					coverUrl,
+					saved: !!savedBook,
+					savedId: savedBook ? String(savedBook._id) : null
+				};
+			});
+		},
 		async ensurePublishYear(doc) {
 			try {
 				if (doc && (doc.publishYear == null || doc.publishYear === undefined)) {
